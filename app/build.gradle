@@ -1,0 +1,115 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+def getBuildId() {
+    def buildPropsFile = file('build.properties')
+    def buildProps = new Properties()
+    buildProps.load(new FileInputStream(buildPropsFile))
+
+    def versionCode = 1
+    if (buildProps.getProperty('BUILD_ID')) {
+        versionCode = buildProps.getProperty('BUILD_ID').toInteger() + 1
+    }
+
+    buildProps['BUILD_ID']=versionCode.toString()
+    buildProps.store(buildPropsFile.newWriter(), null)
+
+    return versionCode
+}
+
+def getProdVersionName(buildId) {
+    def date = new Date()
+    def version = (date.year % 100) * 10000 + (date.month + 1) * 100 + date.date
+    return String.format("%d.%d", version, buildId)
+}
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion "23.0.1"
+
+    def config = new Properties()
+    config.load(file('config.properties').newDataInputStream())
+
+    defaultConfig {
+        applicationId "org.tecrash.crashreport2"
+        minSdkVersion 21
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+        manifestPlaceholders = [
+                DROPBOX_APPKEY: config.getProperty("dropbox.appkey"),
+                DROPBOX_DEVKEY: config.getProperty("dropbox.devkey"),
+                DROPBOX_REPORT_URL: config.getProperty("dropbox.report.url"),
+                DROPBOX_REPORT_DEVURL: config.getProperty("dropbox.report.devurl")
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    productFlavors {
+        def buildId = getBuildId()
+
+        prod {
+            applicationId config.getProperty("app.id")
+            versionCode buildId
+            versionName getProdVersionName(buildId)
+        }
+        dev {
+            applicationId 'org.dev'
+            versionCode buildId
+            versionName getProdVersionName(buildId)
+        }
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile "com.android.support:support-annotations:$support_version"
+    compile "com.android.support:appcompat-v7:$support_version"
+    compile "com.android.support:support-v4:$support_version"
+
+    // network
+    compile 'com.squareup.retrofit:retrofit:1.8.0'
+    compile "com.squareup.okhttp:okhttp:$okhttp_version"
+    compile "com.squareup.okhttp:okhttp-urlconnection:$okhttp_version"
+
+    // Rx dependency
+    compile 'io.reactivex:rxandroid:1.0.1'
+    compile 'io.reactivex:rxkotlin:0.22.13'
+
+    //DI dependencies
+    compile "com.google.dagger:dagger:$dagger_version"
+    kapt "com.google.dagger:dagger-compiler:$dagger_version"
+    provided 'org.glassfish:javax.annotation:10.0-b28'
+
+    // DBFlow
+    kapt "com.raizlabs.android:DBFlow-Compiler:$dbflow_versio"
+    compile "com.raizlabs.android:DBFlow-Core:$dbflow_versio"
+    compile "com.raizlabs.android:DBFlow:$dbflow_versio"
+
+    // kotlin
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+}
+
+kapt {
+    generateStubs = true
+}
+
+repositories {
+    maven { url 'https://raw.github.com/Raizlabs/maven-releases/master/releases' }
+    maven { url 'http://oss.sonatype.org/content/repositories/snapshots' }
+    jcenter()
+}

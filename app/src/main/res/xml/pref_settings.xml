@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:title="@string/pref_header_general"
+        android:key="pref_key_general">
+        <CheckBoxPreference
+            android:key="@string/pref_key_on"
+            android:title="@string/pref_key_on_title"
+            android:summary="@string/pref_key_on_summary"
+            android:defaultValue="true" />
+        <ListPreference
+            android:key="@string/pref_key_url"
+            android:title="@string/pref_key_url_title"
+            android:summary="@string/pref_key_url_summary"
+            android:entries="@array/pref_key_url_list_titles"
+            android:entryValues="@array/pref_key_url_list_values"
+            android:defaultValue="" />
+        <ListPreference
+            android:key="@string/pref_key_days_to_upload_log"
+            android:title="@string/pref_key_days_to_upload_log_title"
+            android:summary="@string/pref_key_days_to_upload_log_summary"
+            android:entries="@array/pref_key_days_list_titles"
+            android:entryValues="@array/pref_key_days_list_values"
+            android:defaultValue="90" />
+
+    </PreferenceCategory>
+</PreferenceScreen>

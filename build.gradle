@@ -7,6 +7,8 @@ buildscript {
         okhttp_version = "2.5.0"
         dagger_version = "2.0.1"
         dbflow_versio = "2.0.0"
+        retrofit_version = "2.0.0-beta2"
+        gson_version = "2.3.1"
     }
 
     repositories {

@@ -11,5 +11,6 @@ import javax.inject.Singleton
 
 @Module
 class DbModule() {
-    @Provides @Singleton fun provideDropboxModelService(): DropboxModelService = DropboxModelService()
+    @Provides @Singleton
+    fun provideDropboxModelService(): DropboxModelService = DropboxModelService()
 }

@@ -3,18 +3,36 @@ package org.tecrash.crashreport2.job
 import android.app.Service
 import android.app.job.JobParameters
 import android.app.job.JobService
+import android.content.ComponentName
 import android.content.Intent
+import android.os.DropBoxManager
 import android.os.Message
 import android.os.Messenger
+import org.tecrash.crashreport2.api.data.ReportData
+import org.tecrash.crashreport2.api.data.ReportDataEntry
+import org.tecrash.crashreport2.app.App
+import org.tecrash.crashreport2.db.DropboxModelService
 import org.tecrash.crashreport2.util.Log
+import rx.lang.kotlin.observable
+import rx.schedulers.Schedulers
+import javax.inject.Inject
+import kotlin.concurrent.thread
+import kotlin.text.Regex
 
 /**
  * Sending dropbox job
  * Created by xiaocong on 15/10/3.
  */
 class SendJobService(): JobService() {
+
+    @Inject lateinit var jobComponentName: ComponentName
+    @Inject lateinit var dropBoxManager: DropBoxManager
+    @Inject lateinit var dropboxDbService: DropboxModelService
+
     override fun onCreate() {
         super.onCreate()
+        (application as App).component.inject(this)
+
         Log.d("Job service created!")
     }
 
@@ -44,9 +62,73 @@ class SendJobService(): JobService() {
         Log.d("Job started!")
         if (params?.jobId == JOB_SENDING_DROPBOX_ENTRY) {
             //TODO upload dropbox entry to server
+            reportData().subscribeOn(Schedulers.newThread()).subscribe {
+                Log.d(it.toString())
+                jobFinished(params, false)
+            }
         }
-        jobFinished(params, false)
-        return false
+        return true
+    }
+
+    private fun reportData() = observable<ReportData> { subscriber ->
+        thread {
+            dropBoxItems().reduce(arrayOf<ReportDataEntry>()) { list, entry ->
+                val dupEntry = list.filter {
+                    entry.app == it.app && entry.tag == it.tag
+                }
+
+                if (dupEntry.size() > 0) {
+                    dupEntry.get(0).count += 1
+                    dropboxDbService.delete(entry.id)
+                    Log.d("Remove duplicated ${entry.toString()}")
+
+                    list
+                } else {
+                    Log.d("Add new one ${entry.toString()}")
+                    arrayOf(*list, entry)
+                }
+            }.map {
+                ReportData(System.currentTimeMillis(), it)
+            }.subscribe(subscriber)
+        }
+    }
+
+    private fun dropBoxItems() = observable<ReportDataEntry> { subscriber ->
+        dropboxDbService.list(false).map {
+            it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
+        }.filter {
+            (it.second.flags and DropBoxManager.IS_TEXT) > 0 && it.first.timestamp == it.second.timeMillis
+        }.map {
+            ReportDataEntry(it.first.id, it.second.tag, appName(it.second), it.second.timeMillis)
+        }.subscribe(subscriber)
+    }
+
+    private fun appName(item: DropBoxManager.Entry): String = when(item.tag) {
+            "SYSTEM_RESTART", "system_server_lowmem", "system_server_watchdog", "system_server_wtf" -> {
+                "system_server"
+            }
+            "BATTERY_DISCHARGE_INFO" -> "battery"
+            "SYSTEM_BOOT", "SYSTEM_RECOVERY_LOG" -> {
+                "system"
+            }
+            "APANIC_CONSOLE", "KERNEL_PANIC", "KERNEL_PANIC", "SYSTEM_AUDIT", "SYSTEM_LAST_KMSG" -> {
+                "kernel"
+            }
+            "SYSTEM_TOMBSTONE" -> processName(item.getText(4 * 1024), tbRegex)
+            "system_app_crash", "data_app_crash", "system_app_anr", "data_app_anr", "system_app_wtf" -> {
+                processName(item.getText(2 * 1024), procRegex)
+            }
+            else -> processName(item.getText(2 * 1024), procRegex)
+        }
+
+    private fun processName(content: String, regex: Regex): String {
+        content.lines().forEach { line ->
+            val match = regex.match(line)
+            match?.let {
+                return match.groups.get(1)!!.value
+            }
+        }
+        return "Unknown"
     }
 
     companion object {
@@ -54,5 +136,7 @@ class SendJobService(): JobService() {
         final val JOB_RETRIEVING_CONFIG = 101
 
         final val MSG_SERVICE_OBJ = 2
+        final val procRegex = Regex("Process:\\s+([\\w\\-\\./:$#\\(\\)]+)")
+        final val tbRegex = Regex("pid:\\s*\\d+,\\s*tid:\\s*\\d+,\\s*name:.+?>>>\\s+([\\w\\-\\./:$#\\(\\)]+)\\s+<<<")
     }
 }

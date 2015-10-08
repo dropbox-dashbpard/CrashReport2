@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.DropBoxManager
@@ -19,7 +20,6 @@ import rx.lang.kotlin.toSingletonObservable
 import rx.schedulers.Schedulers
 import java.io.File
 import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPOutputStream
 import javax.inject.Inject
 import kotlin.concurrent.thread
@@ -33,6 +33,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
     @Inject lateinit var app: Application
     @Inject lateinit var config: ConfigService
     @Inject lateinit var jobScheduler: JobScheduler
+    @Inject lateinit var jobComponentName: ComponentName
 
     override fun onReceive(context: Context, intent: Intent) {
         (context.applicationContext as App).component.inject(this)
@@ -88,12 +89,13 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                 val fileName = if (arrayOf("SYSTEM_RESTART",
                         "SYSTEM_TOMBSTONE",
                         "system_server_watchdog",
-                        "system_app_crash",
+                        "system_app_crash", "system_app_strictmode",
                         "system_app_anr").contains(tag)) {
-                    Log.i("Log saved for dropbox entry $tag at ${Date(timestamp)}")
+                    val fileName = "${app.cacheDir}/db.$timestamp.log.gz"
+                    Log.i("Log saved for dropbox entry $tag at $fileName")
 
                     // save logcat
-                    saveLogcat("${app.cacheDir}/db.$timestamp.log.gz")
+                    saveLogcat(fileName)
                 } else {
                     ""
                 }
@@ -107,18 +109,18 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
     private fun receiveDropboxAdded(tag: String, timestamp: Long) = dropboxObserver(tag, timestamp)
         .observeOn(AndroidSchedulers.mainThread())
         .subscribeOn(Schedulers.newThread())
-        .delay(5L, TimeUnit.SECONDS)
+        //.delay(5L, TimeUnit.SECONDS)
         .flatMap {
-            dbService.create(it.get(0), it.get(1).toLong(), it.get(2))
+            dbService.createAsync(it.get(0), it.get(1).toLong(), it.get(2))
         }.subscribe { item ->
             Log.d("DB entry saved: ${item.toString()}")
-            App.jobComponentName.let {
+            jobComponentName.let {
                 val extras = PersistableBundle()
                 extras.putLong("id", item.id)
-                val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_ENTRY, App.jobComponentName)
+                val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_ENTRY, jobComponentName)
                     .setExtras(extras)
-                    .setMinimumLatency(if(config.development) 1000L else 5*60*1000L)
-                    .setOverrideDeadline(if(config.development) 10*1000L else 60*60*1000L)
+                    .setMinimumLatency(if(config.development) 1000L else 60*1000L)
+                    .setOverrideDeadline(if(config.development) 10*1000L else 10*60*1000L)
                     .setPersisted(true)
                     .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
                     .build()

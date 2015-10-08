@@ -2,19 +2,14 @@ package org.tecrash.crashreport2.api
 
 import android.app.Application
 import android.content.SharedPreferences
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
+import com.squareup.okhttp.HttpUrl
 import com.squareup.okhttp.OkHttpClient
 import dagger.Module
 import dagger.Provides
 import org.tecrash.crashreport2.R
-import org.tecrash.crashreport2.userBuild
 import org.tecrash.crashreport2.util.ConfigService
-import retrofit.Endpoint
-import retrofit.Endpoints
-import retrofit.RestAdapter
-import retrofit.client.OkClient
-import retrofit.converter.GsonConverter
+import retrofit.GsonConverterFactory
+import retrofit.Retrofit
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import javax.inject.Named
@@ -30,9 +25,6 @@ import javax.net.ssl.X509TrustManager
  */
 @Module
 class ApiModule {
-
-    @Provides @Singleton
-    fun provideGson(): Gson = GsonBuilder().create()
 
     @Provides @Singleton
     fun provideSSLContext(): SSLContext {
@@ -67,21 +59,20 @@ class ApiModule {
     @Provides @Singleton
     fun provideGzipRequestInterceptor(): GzipRequestInterceptor = GzipRequestInterceptor()
 
-    @Provides
-    fun provideEndPoint(app: Application, sharedPreferences: SharedPreferences, configService: ConfigService): Endpoint {
+    @Provides @Named("Api")
+    fun provideUrl(app: Application, sharedPreferences: SharedPreferences, configService: ConfigService): HttpUrl {
         var urlKey = sharedPreferences.getString(app.getString(R.string.pref_key_url), "")
         if("".equals(urlKey)) {
             val urls = app.resources.getStringArray(R.array.pref_key_url_list_values)
             urlKey = if (configService.development) urls[2] else urls[1]
         }
-        return Endpoints.newFixedEndpoint(configService.metaData(urlKey))
+        return HttpUrl.parse(configService.metaData(urlKey))
     }
 
     @Provides
-    fun provideRestAdapter(endpoint: Endpoint, @Named("Api") client: OkHttpClient, gson: Gson): RestAdapter = RestAdapter.Builder()
-        .setClient(OkClient(client))
-        .setEndpoint(endpoint)
-        .setConverter(GsonConverter(gson))
-        .setLogLevel(if(userBuild) RestAdapter.LogLevel.NONE else RestAdapter.LogLevel.FULL)
+    fun provideRestrofit(@Named("Api") url: HttpUrl, @Named("Api") client: OkHttpClient): Retrofit = Retrofit.Builder()
+        .baseUrl(url)
+        .client(client)
+        .addConverterFactory(GsonConverterFactory.create())
         .build()
 }

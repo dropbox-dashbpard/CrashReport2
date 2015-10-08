@@ -3,6 +3,7 @@ package org.tecrash.crashreport2.di
 import android.app.Application
 import android.app.job.JobScheduler
 import android.content.Context
+import android.os.DropBoxManager
 import dagger.Module
 import dagger.Provides
 import org.tecrash.crashreport2.app.AppLifecycleCallbacks
@@ -29,4 +30,8 @@ class AndroidModule(private val application: BaseApplication) {
 
     @Provides @Singleton
     fun provideAppLifecycleCallbacks(): AppLifecycleCallbacks = ReleaseAppLifecycleCallbacks()
+
+    @Provides @Singleton
+    fun provideDropBoxManager(): DropBoxManager = application.getSystemService(Context.DROPBOX_SERVICE) as DropBoxManager
+
 }

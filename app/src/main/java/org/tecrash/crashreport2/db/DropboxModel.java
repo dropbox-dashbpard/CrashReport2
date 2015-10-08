@@ -58,6 +58,18 @@ public class DropboxModel extends BaseModel {
 
     @NotNull
     @Column
+    protected long uptime;
+
+    public long getUptime() {
+        return uptime;
+    }
+
+    public void setUptime(long uptime) {
+        this.uptime = uptime;
+    }
+
+    @NotNull
+    @Column
     protected String log = "";
 
     public String getLog() {
@@ -80,13 +92,38 @@ public class DropboxModel extends BaseModel {
         this.serverId = serverId;
     }
 
+    @NotNull
+    @Column
+    protected int contentUploadStatus = SHOULD_NOT;
+
+    public int getContentUploadStatus() {
+        return contentUploadStatus;
+    }
+
+    public void setContentUploadStatus(int contentUploadStatus) {
+        this.contentUploadStatus = contentUploadStatus;
+    }
+
+    @NotNull
+    @Column
+    protected int contentLogStatus = SHOULD_NOT;
+
+    public int getcontentLogStatus() {
+        return contentLogStatus;
+    }
+
+    public void setcontentLogStatus(int contentLogStatus) {
+        this.contentLogStatus = contentLogStatus;
+    }
+
     public DropboxModel() {
     }
 
-    public DropboxModel(String tag, Long timestamp, String log) {
+    public DropboxModel(String tag, long timestamp, String log, long uptime) {
         this.tag = tag;
         this.timestamp = timestamp;
         this.log = log;
+        this.uptime = uptime;
     }
 
     @Override
@@ -94,4 +131,7 @@ public class DropboxModel extends BaseModel {
         return "ID = " + id + ", Tag = " + tag + ", Timestamp = " + timestamp + ", Log = " + log;
     }
 
+    public final static int SHOULD_NOT = 0;
+    public final static int SHOULD_BUT_NOT_UPLOADED = 1;
+    public final static int SHOULD_AND_UPLOADED = 3;
 }

@@ -8,10 +8,12 @@ import android.content.Intent
 import android.os.DropBoxManager
 import android.os.Message
 import android.os.Messenger
+import org.tecrash.crashreport2.api.DropboxApiService
 import org.tecrash.crashreport2.api.data.ReportData
 import org.tecrash.crashreport2.api.data.ReportDataEntry
 import org.tecrash.crashreport2.app.App
 import org.tecrash.crashreport2.db.DropboxModelService
+import org.tecrash.crashreport2.util.ConfigService
 import org.tecrash.crashreport2.util.Log
 import rx.lang.kotlin.observable
 import rx.schedulers.Schedulers
@@ -28,6 +30,8 @@ class SendJobService(): JobService() {
     @Inject lateinit var jobComponentName: ComponentName
     @Inject lateinit var dropBoxManager: DropBoxManager
     @Inject lateinit var dropboxDbService: DropboxModelService
+    @Inject lateinit var dropboxApiService: DropboxApiService
+    @Inject lateinit var configService: ConfigService
 
     override fun onCreate() {
         super.onCreate()
@@ -64,6 +68,10 @@ class SendJobService(): JobService() {
             //TODO upload dropbox entry to server
             reportData().subscribeOn(Schedulers.newThread()).subscribe {
                 Log.d(it.toString())
+                val result = dropboxApiService.report(auth="", ua=configService.ua, data=it).execute()
+                result?.let {
+                    Log.d(result.toString())
+                }
                 jobFinished(params, false)
             }
         }
@@ -73,18 +81,20 @@ class SendJobService(): JobService() {
     private fun reportData() = observable<ReportData> { subscriber ->
         thread {
             dropBoxItems().reduce(arrayOf<ReportDataEntry>()) { list, entry ->
+                // remove duplicated (tag, app) in one reporting session, to avoid a burst number of
+                // crashes data in a short time.
                 val dupEntry = list.filter {
                     entry.app == it.app && entry.tag == it.tag
                 }
 
                 if (dupEntry.size() > 0) {
-                    dupEntry.get(0).count += 1
+                    dupEntry.get(0).count += entry.count
                     dropboxDbService.delete(entry.id)
-                    Log.d("Remove duplicated ${entry.toString()}")
+                    Log.v("Remove duplicated ${entry.toString()}")
 
                     list
                 } else {
-                    Log.d("Add new one ${entry.toString()}")
+                    Log.v("Add new one ${entry.toString()}")
                     arrayOf(*list, entry)
                 }
             }.map {

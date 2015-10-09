@@ -15,7 +15,6 @@ import java.security.cert.X509Certificate
 import javax.inject.Named
 import javax.inject.Singleton
 import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
@@ -45,10 +44,10 @@ class ApiModule {
     @Provides @Singleton
     fun provideOkHttpClient(sslContext: SSLContext): OkHttpClient {
         val client = OkHttpClient()
-        client.setHostnameVerifier { s: String?, sslSession: SSLSession ->
-            true
-        }
-        client.setSslSocketFactory(sslContext.getSocketFactory())
+//        client.setHostnameVerifier { s: String?, sslSession: SSLSession ->
+//            true
+//        }
+//        client.setSslSocketFactory(sslContext.getSocketFactory())
 
         return client
     }
@@ -75,4 +74,7 @@ class ApiModule {
         .client(client)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
+
+    @Provides
+    fun provideDropboxApiService(retrofit: Retrofit): DropboxApiService = retrofit.create(DropboxApiService::class.java)
 }

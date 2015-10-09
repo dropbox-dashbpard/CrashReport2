@@ -72,7 +72,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
 
     private fun dropboxObserver(tag: String, timestamp: Long) = observable<Array<String>> { subscriber ->
         thread {
-            Log.d(">>> Emit dropbox item, tag = $tag, at ${Date(timestamp)} >>>")
+            Log.v(">>> Emit dropbox item, tag = $tag, at ${Date(timestamp)} >>>")
             Pair(tag, timestamp).toSingletonObservable()
             .filter {
                 arrayOf("SYSTEM_RESTART",
@@ -92,7 +92,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                         "system_app_crash", "system_app_strictmode",
                         "system_app_anr").contains(tag)) {
                     val fileName = "${app.cacheDir}/db.$timestamp.log.gz"
-                    Log.i("Log saved for dropbox entry $tag at $fileName")
+                    Log.d("Log file $fileName saved for dropbox entry $tag")
 
                     // save logcat
                     saveLogcat(fileName)

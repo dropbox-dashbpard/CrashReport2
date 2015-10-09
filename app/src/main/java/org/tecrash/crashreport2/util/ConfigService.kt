@@ -3,6 +3,7 @@ package org.tecrash.crashreport2.util
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.TelephonyManager
 import org.tecrash.crashreport2.R
@@ -26,7 +27,7 @@ class ConfigService(private val app: Application, private val sharedPreferences:
     }
 
     val wifiMacAddress: String by lazy {
-        readText("/sys/class/net/wlan0/address")
+        readText("/sys/class/net/wlan0/address").trim()
     }
 
     val serialNo: String by lazy {
@@ -75,8 +76,12 @@ class ConfigService(private val app: Application, private val sharedPreferences:
                 "imei=$imei"
     }
 
-    fun enabled() = sharedPreferences.getBoolean(app.getString(R.string.pref_key_on), true)
+    fun enabled() =
+        sharedPreferences.getBoolean(app.getString(R.string.pref_key_on), true)
 
-    fun metaData(key: String): String? = app.applicationInfo.metaData.getString(key)
+    fun metaData(key: String) =
+        app.packageManager
+        .getApplicationInfo(app.packageName, PackageManager.GET_META_DATA)
+        .metaData.getString(key)
 
 }

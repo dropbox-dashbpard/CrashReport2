@@ -16,13 +16,12 @@ import kotlin.concurrent.thread
 
 public class DropboxModelService() {
 
-    public fun create(tag: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
-        DropboxModel(tag, timestamp, log, SystemClock.elapsedRealtime()).toSingletonObservable()
-        .map {
+    public fun create(tag: String, timestamp: Long, log: String = "") =
+        DropboxModel(tag, timestamp, log, SystemClock.elapsedRealtime())
+        .toSingletonObservable().map {
             it.save()
             it
-        }.subscribe(subscriber)
-    }
+        }
 
     public fun createAsync(tag: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
         thread {
@@ -39,14 +38,14 @@ public class DropboxModelService() {
     }
 
 
-    public fun list(includeReported: Boolean = false, order: String = DropboxModel_Table.ID) = observable<DropboxModel> { subscriber->
+    public fun list(includeReported: Boolean = false, order: String = DropboxModel_Table.ID): rx.Observable<DropboxModel> {
         val select = Select().from(DropboxModel::class.java)
         val where = if (includeReported)
             select.where()
         else
             select.where(Condition.column(DropboxModel_Table.SERVERID).isNull())
 
-        where.orderBy(true, order).queryList().toObservable().subscribe(subscriber)
+        return where.orderBy(true, order).queryList().toObservable()
     }
 
     public fun listAsync(includeReported: Boolean = false, order: String = DropboxModel_Table.TIMESTAMP) = observable<DropboxModel> { subscriber->

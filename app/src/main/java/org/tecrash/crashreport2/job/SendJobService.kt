@@ -124,7 +124,12 @@ class SendJobService(): JobService() {
     private fun dropBoxItems() = dropboxDbService.list(false).map {
         it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
     }.filter {
-        (it.second.flags and DropBoxManager.IS_TEXT) > 0 && it.first.timestamp == it.second.timeMillis
+        if ((it.second.flags and DropBoxManager.IS_TEXT) > 0 && it.first.timestamp == it.second.timeMillis)
+            true
+        else {
+            dropboxDbService.deleteAsync(it.first.id)
+            false
+        }
     }.map {
         ReportDataEntry(it.first.id, it.second.tag, appName(it.second), it.second.timeMillis)
     }

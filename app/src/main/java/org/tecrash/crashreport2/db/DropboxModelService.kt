@@ -31,7 +31,16 @@ public class DropboxModelService() {
         }
     }
 
-    public fun list(includeReported: Boolean = false, order: String = DropboxModel_Table.TIMESTAMP) = observable<DropboxModel> { subscriber->
+    public fun get(id: Long) = Select().from(DropboxModel::class.java)
+        .where(Condition.column(DropboxModel_Table.ID).eq(id))
+        .querySingle().toSingletonObservable()
+
+    public fun getAsync(id: Long) = observable<DropboxModel> { subscriber ->
+        thread { get(id).subscribe(subscriber) }
+    }
+
+
+    public fun list(includeReported: Boolean = false, order: String = DropboxModel_Table.ID) = observable<DropboxModel> { subscriber->
         val select = Select().from(DropboxModel::class.java)
         val where = if (includeReported)
             select.where()

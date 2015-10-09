@@ -12,6 +12,7 @@ import org.tecrash.crashreport2.api.DropboxApiService
 import org.tecrash.crashreport2.api.data.ReportData
 import org.tecrash.crashreport2.api.data.ReportDataEntry
 import org.tecrash.crashreport2.app.App
+import org.tecrash.crashreport2.db.DropboxModel
 import org.tecrash.crashreport2.db.DropboxModelService
 import org.tecrash.crashreport2.util.ConfigService
 import org.tecrash.crashreport2.util.Log
@@ -66,11 +67,30 @@ class SendJobService(): JobService() {
         Log.d("Job started!")
         if (params?.jobId == JOB_SENDING_DROPBOX_ENTRY) {
             //TODO upload dropbox entry to server
-            reportData().subscribeOn(Schedulers.newThread()).subscribe {
-                Log.d(it.toString())
-                val result = dropboxApiService.report(auth="", ua=configService.ua, data=it).execute()
-                result?.let {
-                    Log.d(result.toString())
+            reportData().subscribeOn(Schedulers.newThread()).subscribe { data ->
+                Log.d(data.toString())
+                try {
+                    val result = dropboxApiService.report(auth="Bearer ${configService.key}", ua=configService.ua, data=data).execute()
+                    if (result.isSuccess) {
+                        result.body().data.zip(data.data).forEach {
+                            Log.d(it.first.toString())
+                            if (it.first.uploadContent || it.first.uploadLog) {
+                                dropboxDbService.get(it.second.id).forEach { item ->
+                                    item.serverId = it.first.dropbox_id
+                                    if (it.first.uploadContent)
+                                        item.contentUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
+                                    if (it.first.uploadLog)
+                                        item.logUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
+                                    item.save()
+                                    // TODO upload content and log
+                                }
+                            } else {
+                                dropboxDbService.delete(it.second.id)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(e.getMessage() ?: "Error during sending dropbox data.")
                 }
                 jobFinished(params, false)
             }
@@ -90,11 +110,9 @@ class SendJobService(): JobService() {
                 if (dupEntry.size() > 0) {
                     dupEntry.get(0).count += entry.count
                     dropboxDbService.delete(entry.id)
-                    Log.v("Remove duplicated ${entry.toString()}")
 
                     list
                 } else {
-                    Log.v("Add new one ${entry.toString()}")
                     arrayOf(*list, entry)
                 }
             }.map {

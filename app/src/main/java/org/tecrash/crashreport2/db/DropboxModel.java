@@ -106,14 +106,14 @@ public class DropboxModel extends BaseModel {
 
     @NotNull
     @Column
-    protected int contentLogStatus = SHOULD_NOT;
+    protected int logUploadStatus = SHOULD_NOT;
 
-    public int getcontentLogStatus() {
-        return contentLogStatus;
+    public int getLogUploadStatus() {
+        return logUploadStatus;
     }
 
-    public void setcontentLogStatus(int contentLogStatus) {
-        this.contentLogStatus = contentLogStatus;
+    public void setLogUploadStatus(int logUploadStatus) {
+        this.logUploadStatus = logUploadStatus;
     }
 
     public DropboxModel() {

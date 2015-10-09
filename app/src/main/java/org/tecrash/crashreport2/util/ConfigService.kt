@@ -58,6 +58,9 @@ class ConfigService(private val app: Application, private val sharedPreferences:
 
         val language = Locale.getDefault().language
 
+        val props = metaData("DROPBOX_REPORT_PROPERTIES") ?: ""
+        val extraProps = extraProps(props)
+
         "sdk_int=${Build.VERSION.SDK_INT};" +
                 "app_version=$versionCode;" +
                 "app_name=$appName;" +
@@ -73,15 +76,33 @@ class ConfigService(private val app: Application, private val sharedPreferences:
                 "display=${Build.DISPLAY};" +
                 "sn=$serialNo;" +
                 "mac_address=$wifiMacAddress;" +
-                "imei=$imei"
+                "imei=$imei;" +
+                "$extraProps"
+    }
+
+    val key: String by lazy {
+        if (development)
+            metaData("DROPBOX_DEVKEY")
+        else
+            metaData("DROPBOX_APPKEY")
+    }
+
+    fun extraProps(props: String) = props.split(";").map {
+        it.split("=")
+    }.filter {
+        it.size() == 2
+    }.map {
+        "${it.get(0)}=${readProperty(it.get(1))}"
+    }.reduce { left, item ->
+        "$left;$item"
     }
 
     fun enabled() =
-        sharedPreferences.getBoolean(app.getString(R.string.pref_key_on), true)
+            sharedPreferences.getBoolean(app.getString(R.string.pref_key_on), true)
 
     fun metaData(key: String) =
-        app.packageManager
-        .getApplicationInfo(app.packageName, PackageManager.GET_META_DATA)
-        .metaData.getString(key)
+            app.packageManager
+                    .getApplicationInfo(app.packageName, PackageManager.GET_META_DATA)
+                    .metaData.getString(key)
 
 }

@@ -12,6 +12,6 @@ import retrofit.http.POST
  * Created by xiaocong on 15/10/6.
  */
 interface DropboxApiService {
-    @POST("/dropbox")
-    fun report(@Header("Authorization") auth: String, @Header("X-Dropbox-UA") ua: String, @Body data: ReportData): Call<MutableList<ReportResult>>
+    @POST("/api/0/dropbox")
+    fun report(@Header("Authorization") auth: String, @Header("X-Dropbox-UA") ua: String, @Body data: ReportData): Call<ReportResult>
 }

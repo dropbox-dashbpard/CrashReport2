@@ -40,7 +40,8 @@ android {
                 DROPBOX_APPKEY: config.getProperty("dropbox.appkey"),
                 DROPBOX_DEVKEY: config.getProperty("dropbox.devkey"),
                 DROPBOX_REPORT_URL: config.getProperty("dropbox.report.url"),
-                DROPBOX_REPORT_DEVURL: config.getProperty("dropbox.report.devurl")
+                DROPBOX_REPORT_DEVURL: config.getProperty("dropbox.report.devurl"),
+                DROPBOX_REPORT_PROPERTIES: config.getProperty("dropbox.report.properties")
         ]
     }
 

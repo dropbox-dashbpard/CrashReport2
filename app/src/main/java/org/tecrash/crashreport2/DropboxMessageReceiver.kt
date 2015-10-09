@@ -91,7 +91,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                         "system_server_watchdog",
                         "system_app_crash", "system_app_strictmode",
                         "system_app_anr").contains(tag)) {
-                    val fileName = "${app.cacheDir}/db.$timestamp.log.gz"
+                    val fileName = "${app.filesDir}/db.$timestamp.log.gz"
                     Log.d("Log file $fileName saved for dropbox entry $tag")
 
                     // save logcat

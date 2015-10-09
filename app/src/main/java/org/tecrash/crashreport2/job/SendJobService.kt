@@ -72,20 +72,20 @@ class SendJobService(): JobService() {
                 try {
                     val result = dropboxApiService.report(auth="Bearer ${configService.key}", ua=configService.ua, data=data).execute()
                     if (result.isSuccess) {
-                        result.body().data.zip(data.data).forEach {
-                            Log.d(it.first.toString())
-                            if (it.first.uploadContent || it.first.uploadLog) {
-                                dropboxDbService.get(it.second.id).forEach { item ->
-                                    item.serverId = it.first.dropbox_id
-                                    if (it.first.uploadContent)
+                        result.body().data.zip(data.data).forEach { zipped ->
+                            if (zipped.first != null && (zipped.first.uploadContent || zipped.first.uploadLog)) {
+                                Log.d(zipped.first.toString())
+                                dropboxDbService.get(zipped.second.id).forEach { item ->
+                                    item.serverId = zipped.first.dropbox_id
+                                    if (zipped.first.uploadContent)
                                         item.contentUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
-                                    if (it.first.uploadLog)
+                                    if (zipped.first.uploadLog)
                                         item.logUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
                                     item.save()
                                     // TODO upload content and log
                                 }
                             } else {
-                                dropboxDbService.delete(it.second.id)
+                                dropboxDbService.delete(zipped.second.id)
                             }
                         }
                     }

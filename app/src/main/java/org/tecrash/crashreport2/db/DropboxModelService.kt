@@ -57,13 +57,15 @@ public class DropboxModelService() {
     }
 
     public fun delete(id: Long) {
-        val item = Select().from(DropboxModel::class.java).where(Condition.column(DropboxModel_Table.ID).eq(id)).querySingle()
-        item.log?.let {
+        Select().from(DropboxModel::class.java)
+        .where(Condition.column(DropboxModel_Table.ID).eq(id))
+        .querySingle()
+        .toSingletonObservable().forEach { item ->
             val file = File(item.log)
             if (file.exists())
                 file.deleteRecursively()
+            item.delete()
         }
-        Delete().from(DropboxModel::class.java).where(Condition.column(DropboxModel_Table.ID).eq(id)).queryClose()
     }
 
     public fun deleteAsync(id: Long) = thread {

@@ -8,7 +8,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.DropBoxManager
-import android.os.PersistableBundle
 import org.tecrash.crashreport2.app.App
 import org.tecrash.crashreport2.db.DropboxModelService
 import org.tecrash.crashreport2.job.SendJobService
@@ -114,17 +113,12 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
             dbService.createAsync(it.get(0), it.get(1).toLong(), it.get(2))
         }.subscribe { item ->
             Log.d("DB entry saved: ${item.toString()}")
-            jobComponentName.let {
-                val extras = PersistableBundle()
-                extras.putLong("id", item.id)
-                val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_ENTRY, jobComponentName)
-                    .setExtras(extras)
-                    .setMinimumLatency(if(config.development) 1000L else 60*1000L)
-                    .setOverrideDeadline(if(config.development) 10*1000L else 10*60*1000L)
-                    .setPersisted(true)
-                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
-                    .build()
-                jobScheduler.schedule(job)
-            }
+            val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_ENTRY, jobComponentName)
+                .setMinimumLatency(if(config.development) 1000L else 60*1000L)
+                .setOverrideDeadline(if(config.development) 10*1000L else 10*60*1000L)
+                .setPersisted(true)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+                .build()
+            jobScheduler.schedule(job)
         }
 }

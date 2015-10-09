@@ -2,7 +2,6 @@ package org.tecrash.crashreport2.db
 
 import android.os.SystemClock
 import com.raizlabs.android.dbflow.sql.builder.Condition
-import com.raizlabs.android.dbflow.sql.language.Delete
 import com.raizlabs.android.dbflow.sql.language.Select
 import rx.lang.kotlin.observable
 import rx.lang.kotlin.toObservable

@@ -3,6 +3,7 @@ dropbox.appkey=OFFICIAL-KEY
 dropbox.devkey=DEV-KEY-FOR-DEBUG
 dropbox.report.url=http://crashreport.smartisan.com/api/0
 dropbox.report.devurl=http://192.168.1.158:9000/api/0
+dropbox.report.properties=sw_version=ro.smartisan.version
 
 #application id
 app.id=org.tecrash.crashreport

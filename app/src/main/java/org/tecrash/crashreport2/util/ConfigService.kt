@@ -61,23 +61,29 @@ class ConfigService(private val app: Application, private val sharedPreferences:
         val props = metaData("DROPBOX_REPORT_PROPERTIES") ?: ""
         val extraProps = extraProps(props)
 
-        "sdk_int=${Build.VERSION.SDK_INT};" +
-                "app_version=$versionCode;" +
-                "app_name=$appName;" +
-                "lang=$language;" +
-                "manufacturer=${Build.MANUFACTURER};" +
-                "model=${Build.MODEL};" +
-                "brand=${Build.BRAND};" +
-                "board=${Build.BOARD};" +
-                "device=${Build.DEVICE};" +
-                "product=${Build.PRODUCT};" +
-                "build_id=${Build.ID};" +
-                "incremental=${Build.VERSION.INCREMENTAL};" +
-                "display=${Build.DISPLAY};" +
-                "sn=$serialNo;" +
-                "mac_address=$wifiMacAddress;" +
-                "imei=$imei;" +
-                "$extraProps"
+        arrayOf(
+            "sdk_int" to "${Build.VERSION.SDK_INT}",
+            "app_version" to versionCode,
+            "app_name" to appName,
+            "lang" to language,
+            "manufacturer" to Build.MANUFACTURER,
+            "model" to Build.MODEL,
+            "brand" to Build.BRAND,
+            "board" to Build.BOARD,
+            "device" to Build.DEVICE,
+            "product" to Build.PRODUCT,
+            "build_id" to Build.ID,
+            "incremental" to Build.VERSION.INCREMENTAL,
+            "display" to Build.DISPLAY,
+            "sn" to serialNo,
+            "mac_address" to wifiMacAddress,
+            "imei" to imei,
+            *(extraProps.toTypedArray())
+        ).map {
+            "${it.first}=${it.second}"
+        }.reduce { s, d ->
+            "$s;$d"
+        }
     }
 
     val key: String by lazy {
@@ -92,9 +98,7 @@ class ConfigService(private val app: Application, private val sharedPreferences:
     }.filter {
         it.size() == 2
     }.map {
-        "${it.get(0)}=${readProperty(it.get(1))}"
-    }.reduce { left, item ->
-        "$left;$item"
+        it.get(0) to readProperty(it.get(1))
     }
 
     fun enabled() =

@@ -92,7 +92,7 @@ dependencies {
 
     // Rx dependency
     compile 'io.reactivex:rxandroid:1.0.1'
-    compile 'io.reactivex:rxkotlin:0.22.13'
+    compile 'io.reactivex:rxkotlin:0.24.+'
 
     //DI dependencies
     compile "com.google.dagger:dagger:$dagger_version"

@@ -2,7 +2,7 @@
 
 buildscript {
     ext {
-        kotlin_version = "0.14.+"
+        kotlin_version = "+"
         support_version = "23.0.1"
         okhttp_version = "2.5.0"
         dagger_version = "2.0.1"

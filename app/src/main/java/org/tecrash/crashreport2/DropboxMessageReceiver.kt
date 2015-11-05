@@ -83,12 +83,16 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                         "data_app_anr",
                         "system_app_strictmode"
                 ).contains(it.first)
+            }.filter {
+                if (config.development)
+                    true
+                else
+                    it.first !in arrayOf("system_app_strictmode")
             }.map {
                 val (tag, timestamp) = it
                 val fileName = if (arrayOf("SYSTEM_RESTART",
                         "SYSTEM_TOMBSTONE",
                         "system_server_watchdog",
-                        "system_app_crash", "system_app_strictmode",
                         "system_app_anr").contains(tag)) {
                     val fileName = "${app.filesDir}/db.$timestamp.log.gz"
                     Log.d("Log file $fileName saved for dropbox entry $tag")

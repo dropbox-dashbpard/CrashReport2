@@ -1,14 +1,19 @@
 package org.tecrash.crashreport2.job
 
 import android.app.Service
+import android.app.job.JobInfo
 import android.app.job.JobParameters
+import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Intent
 import android.os.DropBoxManager
 import android.os.Message
 import android.os.Messenger
-import org.tecrash.crashreport2.api.DropboxApiService
+import com.squareup.okhttp.MediaType
+import com.squareup.okhttp.MultipartBuilder
+import com.squareup.okhttp.RequestBody
+import org.tecrash.crashreport2.api.DropboxApiServiceFactory
 import org.tecrash.crashreport2.api.data.ReportData
 import org.tecrash.crashreport2.api.data.ReportDataEntry
 import org.tecrash.crashreport2.app.App
@@ -18,6 +23,7 @@ import org.tecrash.crashreport2.util.ConfigService
 import org.tecrash.crashreport2.util.Log
 import rx.lang.kotlin.observable
 import rx.schedulers.Schedulers
+import java.io.File
 import javax.inject.Inject
 import kotlin.concurrent.thread
 import kotlin.text.Regex
@@ -31,8 +37,9 @@ class SendJobService(): JobService() {
     @Inject lateinit var jobComponentName: ComponentName
     @Inject lateinit var dropBoxManager: DropBoxManager
     @Inject lateinit var dropboxDbService: DropboxModelService
-    @Inject lateinit var dropboxApiService: DropboxApiService
+    @Inject lateinit var dropboxApiServiceFactory: DropboxApiServiceFactory
     @Inject lateinit var configService: ConfigService
+    @Inject lateinit var jobScheduler: JobScheduler
 
     override fun onCreate() {
         super.onCreate()
@@ -64,38 +71,93 @@ class SendJobService(): JobService() {
     }
 
     override fun onStartJob(params: JobParameters?): Boolean {
-        Log.d("Job started!")
-        if (params?.jobId == JOB_SENDING_DROPBOX_ENTRY) {
-            //TODO upload dropbox entry to server
-            reportData().subscribeOn(Schedulers.newThread()).subscribe { data ->
-                Log.d(data.toString())
-                try {
-                    val result = dropboxApiService.report(auth="Bearer ${configService.key}", ua=configService.ua, data=data).execute()
-                    if (result.isSuccess) {
-                        result.body().data.zip(data.data).forEach { zipped ->
-                            if (zipped.first != null && (zipped.first.uploadContent || zipped.first.uploadLog)) {
-                                Log.d(zipped.first.toString())
-                                dropboxDbService.get(zipped.second.id).forEach { item ->
-                                    item.serverId = zipped.first.dropbox_id
-                                    if (zipped.first.uploadContent)
-                                        item.contentUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
-                                    if (zipped.first.uploadLog)
-                                        item.logUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
-                                    item.save()
-                                    // TODO upload content and log
-                                }
-                            } else {
-                                dropboxDbService.delete(zipped.second.id)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(e.getMessage() ?: "Error during sending dropbox data.")
+        when (params?.jobId) {
+            JOB_SENDING_DROPBOX_ENTRY -> doReport(params!!)
+            JOB_SENDING_DROPBOX_CONTENT -> doUpload(params!!)
+        }
+        return true
+    }
+
+    private fun doUpload(params: JobParameters) {
+        Log.d("Uploading...")
+        // upload content & log
+        dropboxDbService.list(true).map {
+            it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
+        }.filter {
+            it.second?.timeMillis == it.first.timestamp
+        }.subscribeOn(Schedulers.newThread()).subscribe {
+            try {
+                if (it.first.contentUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
+                    Log.d("Uploading dropbox entry content.")
+                    dropboxApiServiceFactory.create(true).uploadContent(
+                            auth="Bearer ${configService.key}",
+                            dbId=it.first.serverId,
+                            data= RequestBody.create(MediaType.parse("text/plain"), it.second.getText(1024*64))
+                    ).execute()
                 }
+                if (it.first.logUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
+                    Log.d("Uploading logs.")
+                    val logFile = File(it.first.log)
+                    val fileBody = RequestBody.create(MediaType.parse("multipart/form-data"), logFile)
+                    val multipartBuilder = MultipartBuilder("95416089-b2fd-4eab-9a14-166bb9c5788b")
+                    multipartBuilder.addFormDataPart("attachment", logFile.name, fileBody)
+                    dropboxApiServiceFactory.create(false).uploadFile(
+                            auth="Bearer ${configService.key}",
+                            dbId=it.first.serverId,
+                            attachment=multipartBuilder.build()
+                    ).execute()
+                }
+            } catch (e: Exception) {
+                Log.e(e.toString())
+            } finally {
+                dropboxDbService.delete(it.first.id)
+            }
+        }
+        jobFinished(params, false)
+    }
+
+    private fun doReport(params: JobParameters) {
+        reportData().subscribeOn(Schedulers.newThread()).subscribe { data ->
+            Log.d("Reporting crashes...")
+            try {
+                val result = dropboxApiServiceFactory.create(true).report(auth="Bearer ${configService.key}", ua=configService.ua, data=data).execute()
+                if (result.isSuccess) {
+                    result.body().data.zip(data.data).filter {
+                        if (it.first == null) {
+                            dropboxDbService.deleteAsync(it.second.id)
+                            false
+                        } else
+                            true
+                    }.forEach { zipped ->
+                        Log.d("Report result: ${zipped}")
+                        dropboxDbService.get(zipped.second.id).forEach { item ->
+                            item.serverId = zipped.first!!.dropbox_id
+                            item.contentUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
+                            if (item.log.isNotEmpty() && File(item.log).exists())
+                                item.logUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
+                            item.save()
+                        }
+                        // create a new job to upload content & log
+                        uploadContentJob()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(e.getMessage() ?: "Error during sending dropbox data.")
+            } finally {
                 jobFinished(params, false)
             }
         }
-        return true
+    }
+
+    private fun uploadContentJob() {
+        val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_CONTENT, jobComponentName)
+                .setPersisted(false)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+                .setMinimumLatency(1000*2)
+                .setOverrideDeadline(1000*5)
+//                .setRequiresCharging(true)
+                .build()
+        jobScheduler.schedule(job)
     }
 
     private fun reportData() = observable<ReportData> { subscriber ->
@@ -139,9 +201,7 @@ class SendJobService(): JobService() {
                 "system_server"
             }
             "BATTERY_DISCHARGE_INFO" -> "battery"
-            "SYSTEM_BOOT", "SYSTEM_RECOVERY_LOG" -> {
-                "system"
-            }
+            "SYSTEM_BOOT", "SYSTEM_RECOVERY_LOG" -> "system"
             "APANIC_CONSOLE", "KERNEL_PANIC", "KERNEL_PANIC", "SYSTEM_AUDIT", "SYSTEM_LAST_KMSG" -> {
                 "kernel"
             }
@@ -164,6 +224,7 @@ class SendJobService(): JobService() {
 
     companion object {
         final val JOB_SENDING_DROPBOX_ENTRY = 1
+        final val JOB_SENDING_DROPBOX_CONTENT = 2
         final val JOB_RETRIEVING_CONFIG = 101
 
         final val MSG_SERVICE_OBJ = 2

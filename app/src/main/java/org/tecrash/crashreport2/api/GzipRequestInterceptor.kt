@@ -13,8 +13,6 @@ import okio.Okio
 
 class GzipRequestInterceptor(): Interceptor {
 
-    private val buffer: Buffer = Buffer()
-
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest: Request = chain.request()
 
@@ -42,6 +40,7 @@ class GzipRequestInterceptor(): Interceptor {
     }
 
     private fun requestBodyWithContentLength(requestBody: RequestBody): RequestBody {
+        val buffer = Buffer()
         requestBody.writeTo(buffer);
 
         return object: RequestBody() {

@@ -87,6 +87,7 @@ dependencies {
     compile "com.google.code.gson:gson:$gson_version"
     compile "com.squareup.retrofit:retrofit:$retrofit_version"
     compile "com.squareup.retrofit:converter-gson:$retrofit_version"
+    compile "com.squareup.retrofit:adapter-rxjava:$retrofit_version"
     compile "com.squareup.okhttp:okhttp:$okhttp_version"
     compile "com.squareup.okhttp:okhttp-urlconnection:$okhttp_version"
 

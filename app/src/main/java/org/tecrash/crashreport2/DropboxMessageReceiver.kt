@@ -93,7 +93,9 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                 val fileName = if (arrayOf("SYSTEM_RESTART",
                         "SYSTEM_TOMBSTONE",
                         "system_server_watchdog",
-                        "system_app_anr").contains(tag)) {
+                        "system_app_anr",
+                        "system_app_crash",
+                        "system_app_strictmode").contains(tag)) {
                     val fileName = "${app.filesDir}/db.$timestamp.log.gz"
                     Log.d("Log file $fileName saved for dropbox entry $tag")
 
@@ -121,7 +123,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                 .setMinimumLatency(if(config.development) 1000L else 60*1000L)
                 .setOverrideDeadline(if(config.development) 10*1000L else 10*60*1000L)
                 .setPersisted(true)
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .build()
             jobScheduler.schedule(job)
         }

@@ -15,6 +15,7 @@ import java.security.cert.X509Certificate
 import javax.inject.Named
 import javax.inject.Singleton
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSession
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
@@ -42,20 +43,6 @@ class ApiModule {
     }
 
     @Provides @Singleton
-    fun provideOkHttpClient(sslContext: SSLContext): OkHttpClient {
-        val client = OkHttpClient()
-//        client.setHostnameVerifier { s: String?, sslSession: SSLSession ->
-//            true
-//        }
-//        client.setSslSocketFactory(sslContext.getSocketFactory())
-
-        return client
-    }
-
-    @Provides @Named("Api")
-    fun provideApiClient(client: OkHttpClient): OkHttpClient = client.clone()
-
-    @Provides @Singleton
     fun provideGzipRequestInterceptor(): GzipRequestInterceptor = GzipRequestInterceptor()
 
     @Provides @Named("Api")
@@ -69,12 +56,24 @@ class ApiModule {
     }
 
     @Provides
-    fun provideRestrofit(@Named("Api") url: HttpUrl, @Named("Api") client: OkHttpClient): Retrofit = Retrofit.Builder()
-        .baseUrl(url)
-        .client(client)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
+    fun provideDropboxApiServiceFactory(@Named("Api") url: HttpUrl, sslContext: SSLContext, gzipInterceptor: GzipRequestInterceptor): DropboxApiServiceFactory = object: DropboxApiServiceFactory {
+        override fun create(zip: Boolean): DropboxApiService {
+            val client = OkHttpClient()
+            // ignore cert verification
+            client.setHostnameVerifier { s: String?, sslSession: SSLSession ->
+                true
+            }
+            client.setSslSocketFactory(sslContext.getSocketFactory())
+            // zip compression
+            if (zip)
+                client.interceptors().add(gzipInterceptor)
 
-    @Provides
-    fun provideDropboxApiService(retrofit: Retrofit): DropboxApiService = retrofit.create(DropboxApiService::class.java)
+            return Retrofit.Builder()
+                    .baseUrl(url)
+                    .client(client)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build()
+                    .create(DropboxApiService::class.java)
+        }
+    }
 }

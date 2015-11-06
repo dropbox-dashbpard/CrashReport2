@@ -38,10 +38,10 @@ public class DropboxModelService() {
     }
 
 
-    public fun list(includeReported: Boolean = false, order: String = DropboxModel_Table.ID): rx.Observable<DropboxModel> {
+    public fun list(reported: Boolean = false, order: String = DropboxModel_Table.ID): rx.Observable<DropboxModel> {
         val select = Select().from(DropboxModel::class.java)
-        val where = if (includeReported)
-            select.where()
+        val where = if (reported)
+            select.where(Condition.column(DropboxModel_Table.SERVERID).isNotNull())
         else
             select.where(Condition.column(DropboxModel_Table.SERVERID).isNull())
 

@@ -8,6 +8,6 @@ data class ReportData(val uptime: Long, val data: Array<ReportDataEntry>)
 
 data class ReportDataEntry(val id: Long, val tag: String, val app: String, val occurred_at: Long, var count: Int = 1)
 
-data class ReportResult(val code: Long, val data: Array<ReportResultEntry>)
+data class ReportResult<T>(val code: Long, val data: Array<T?>)
 
-data class ReportResultEntry(val result: String, val dropbox_id: String, val uploadContent: Boolean = true, val uploadLog: Boolean = false)
+data class ReportResultEntry(val result: String, val dropbox_id: String)

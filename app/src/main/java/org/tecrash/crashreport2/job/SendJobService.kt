@@ -22,6 +22,7 @@ import org.tecrash.crashreport2.db.DropboxModelService
 import org.tecrash.crashreport2.util.ConfigService
 import org.tecrash.crashreport2.util.Log
 import rx.lang.kotlin.observable
+import rx.lang.kotlin.toObservable
 import rx.schedulers.Schedulers
 import java.io.File
 import javax.inject.Inject
@@ -85,67 +86,68 @@ class SendJobService(): JobService() {
             it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
         }.filter {
             it.second?.timeMillis == it.first.timestamp
-        }.subscribeOn(Schedulers.newThread()).subscribe {
-            try {
-                if (it.first.contentUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
-                    Log.d("Uploading dropbox entry content.")
-                    dropboxApiServiceFactory.create(true).uploadContent(
-                            auth="Bearer ${configService.key}",
-                            dbId=it.first.serverId,
-                            data= RequestBody.create(MediaType.parse("text/plain"), it.second.getText(1024*64))
-                    ).execute()
+        }.toList().subscribeOn(Schedulers.newThread()).subscribe { list ->
+            list.forEach {
+                try {
+                    if (it.first.contentUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
+                        Log.d("Uploading dropbox entry content.")
+                        dropboxApiServiceFactory.create(true, true).uploadContent(
+                                auth="Bearer ${configService.key}",
+                                dbId=it.first.serverId,
+                                data= RequestBody.create(MediaType.parse("text/plain"), it.second.getText(1024*64))
+                        ).execute()
+                    }
+                    if (it.first.logUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
+                        Log.d("Uploading logs.")
+                        val logFile = File(it.first.log)
+                        val fileBody = RequestBody.create(MediaType.parse("multipart/form-data"), logFile)
+                        val multipartBuilder = MultipartBuilder("95416089-b2fd-4eab-9a14-166bb9c5788b")
+                        multipartBuilder.addFormDataPart("attachment", logFile.name, fileBody)
+                        dropboxApiServiceFactory.create(false, true).uploadFile(
+                                auth="Bearer ${configService.key}",
+                                dbId=it.first.serverId,
+                                attachment=multipartBuilder.build()
+                        ).execute()
+                    }
+                } catch (e: Exception) {
+                    Log.e(e.toString())
+                } finally {
+                    dropboxDbService.delete(it.first.id)
                 }
-                if (it.first.logUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
-                    Log.d("Uploading logs.")
-                    val logFile = File(it.first.log)
-                    val fileBody = RequestBody.create(MediaType.parse("multipart/form-data"), logFile)
-                    val multipartBuilder = MultipartBuilder("95416089-b2fd-4eab-9a14-166bb9c5788b")
-                    multipartBuilder.addFormDataPart("attachment", logFile.name, fileBody)
-                    dropboxApiServiceFactory.create(false).uploadFile(
-                            auth="Bearer ${configService.key}",
-                            dbId=it.first.serverId,
-                            attachment=multipartBuilder.build()
-                    ).execute()
-                }
-            } catch (e: Exception) {
-                Log.e(e.toString())
-            } finally {
-                dropboxDbService.delete(it.first.id)
             }
+            jobFinished(params, false)
         }
-        jobFinished(params, false)
     }
 
     private fun doReport(params: JobParameters) {
-        reportData().subscribeOn(Schedulers.newThread()).subscribe { data ->
-            Log.d("Reporting crashes...")
-            try {
-                val result = dropboxApiServiceFactory.create(true).report(auth="Bearer ${configService.key}", ua=configService.ua, data=data).execute()
-                if (result.isSuccess) {
-                    result.body().data.zip(data.data).filter {
-                        if (it.first == null) {
-                            dropboxDbService.deleteAsync(it.second.id)
-                            false
-                        } else
-                            true
-                    }.forEach { zipped ->
-                        Log.d("Report result: ${zipped}")
-                        dropboxDbService.get(zipped.second.id).forEach { item ->
-                            item.serverId = zipped.first!!.dropbox_id
-                            item.contentUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
-                            if (item.log.isNotEmpty() && File(item.log).exists())
-                                item.logUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
-                            item.save()
-                        }
-                        // create a new job to upload content & log
-                        uploadContentJob()
-                    }
+        var reportData: ReportData? = null
+        reportData().subscribeOn(Schedulers.newThread()).flatMap { data ->
+            Log.d("Reporting crashes data...")
+            reportData = data
+            dropboxApiServiceFactory.create(true, true).report(auth="Bearer ${configService.key}", ua=configService.ua, data=data)
+        }.flatMap { result ->
+            result.data.zip(reportData!!.data).toObservable()
+        }.filter {
+            if (it.first == null) {
+                // if the server rejects the item, it returns null
+                dropboxDbService.deleteAsync(it.second.id)
+                false
+            } else
+                true
+        }.toList().subscribe { list ->
+            Log.d("Report result: ${list}")
+            list.forEach { zipped ->
+                dropboxDbService.get(zipped.second.id).forEach { item ->
+                    item.serverId = zipped.first!!.dropbox_id
+                    item.contentUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
+                    if (item.log.isNotEmpty() && File(item.log).exists())
+                        item.logUploadStatus = DropboxModel.SHOULD_BUT_NOT_UPLOADED
+                    item.save()
                 }
-            } catch (e: Exception) {
-                Log.e(e.getMessage() ?: "Error during sending dropbox data.")
-            } finally {
-                jobFinished(params, false)
             }
+            jobFinished(params, false)
+            // create a new job to upload content & log
+            uploadContentJob()
         }
     }
 

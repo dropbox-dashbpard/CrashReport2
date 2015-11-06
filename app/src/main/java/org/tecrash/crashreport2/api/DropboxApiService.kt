@@ -6,6 +6,7 @@ import org.tecrash.crashreport2.api.data.ReportResult
 import org.tecrash.crashreport2.api.data.ReportResultEntry
 import retrofit.Call
 import retrofit.http.*
+import rx.Observable
 
 /**
  * Dropbox API
@@ -15,7 +16,7 @@ interface DropboxApiService {
     @POST("/api/0/dropbox")
     fun report(@Header("Authorization") auth: String,
                @Header("X-Dropbox-UA") ua: String,
-               @Body data: ReportData): Call<ReportResult<ReportResultEntry>>
+               @Body data: ReportData): Observable<ReportResult<ReportResultEntry>>
 
     @POST("/api/0/dropbox/{dropboxId}/content")
     @Headers("Content-type: text/plain")

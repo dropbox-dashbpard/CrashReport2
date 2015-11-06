@@ -5,5 +5,5 @@ package org.tecrash.crashreport2.api
  */
 
 interface DropboxApiServiceFactory {
-    fun create(zip: Boolean): DropboxApiService
+    fun create(zip: Boolean, rxcall: Boolean): DropboxApiService
 }

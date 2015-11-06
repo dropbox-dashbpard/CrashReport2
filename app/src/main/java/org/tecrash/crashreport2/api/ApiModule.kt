@@ -10,6 +10,7 @@ import org.tecrash.crashreport2.R
 import org.tecrash.crashreport2.util.ConfigService
 import retrofit.GsonConverterFactory
 import retrofit.Retrofit
+import retrofit.RxJavaCallAdapterFactory
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import javax.inject.Named
@@ -57,7 +58,7 @@ class ApiModule {
 
     @Provides
     fun provideDropboxApiServiceFactory(@Named("Api") url: HttpUrl, sslContext: SSLContext, gzipInterceptor: GzipRequestInterceptor): DropboxApiServiceFactory = object: DropboxApiServiceFactory {
-        override fun create(zip: Boolean): DropboxApiService {
+        override fun create(zip: Boolean, rxcall: Boolean): DropboxApiService {
             val client = OkHttpClient()
             // ignore cert verification
             client.setHostnameVerifier { s: String?, sslSession: SSLSession ->
@@ -68,12 +69,18 @@ class ApiModule {
             if (zip)
                 client.interceptors().add(gzipInterceptor)
 
-            return Retrofit.Builder()
+            val builder = Retrofit.Builder()
                     .baseUrl(url)
                     .client(client)
                     .addConverterFactory(GsonConverterFactory.create())
-                    .build()
-                    .create(DropboxApiService::class.java)
+
+            // rxCallAdapter
+            val build = if (rxcall)
+                builder.addCallAdapterFactory(RxJavaCallAdapterFactory.create()).build()
+            else
+                builder.build()
+
+            return build.create(DropboxApiService::class.java)
         }
     }
 }

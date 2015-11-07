@@ -72,6 +72,7 @@ class SendJobService(): JobService() {
     }
 
     override fun onStartJob(params: JobParameters?): Boolean {
+        Log.d("Job started!")
         when (params?.jobId) {
             JOB_SENDING_DROPBOX_ENTRY -> doReport(params!!)
             JOB_SENDING_DROPBOX_CONTENT -> doUpload(params!!)
@@ -86,7 +87,10 @@ class SendJobService(): JobService() {
             it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
         }.filter {
             it.second?.timeMillis == it.first.timestamp
-        }.toList().subscribeOn(Schedulers.newThread()).subscribe { list ->
+        }.toList().finallyDo {
+            Log.d("Uploading job finished!")
+            jobFinished(params, false)
+        }.subscribeOn(Schedulers.newThread()).subscribe { list ->
             list.forEach {
                 try {
                     if (it.first.contentUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
@@ -115,7 +119,6 @@ class SendJobService(): JobService() {
                     dropboxDbService.delete(it.first.id)
                 }
             }
-            jobFinished(params, false)
         }
     }
 
@@ -124,7 +127,10 @@ class SendJobService(): JobService() {
         reportData().subscribeOn(Schedulers.newThread()).flatMap { data ->
             Log.d("Reporting crashes data...")
             reportData = data
-            dropboxApiServiceFactory.create(true, true).report(auth="Bearer ${configService.key}", ua=configService.ua, data=data)
+            dropboxApiServiceFactory.create(true, true).report(
+                    auth="Bearer ${configService.key}",
+                    ua=configService.ua,
+                    data=data)
         }.flatMap { result ->
             result.data.zip(reportData!!.data).toObservable()
         }.filter {
@@ -134,7 +140,11 @@ class SendJobService(): JobService() {
                 false
             } else
                 true
-        }.toList().subscribe { list ->
+        }.toList().finallyDo {
+            Log.d("Reporting job finished!")
+            // notify jobService that it's done.
+            jobFinished(params, false)
+        }.subscribe({ list ->
             Log.d("Report result: ${list}")
             list.forEach { zipped ->
                 dropboxDbService.get(zipped.second.id).forEach { item ->
@@ -145,10 +155,13 @@ class SendJobService(): JobService() {
                     item.save()
                 }
             }
-            jobFinished(params, false)
+
             // create a new job to upload content & log
+            Log.d("Create a new job to upload log/content.")
             uploadContentJob()
-        }
+        }, { error ->
+            Log.e(error.toString())
+        })
     }
 
     private fun uploadContentJob() {

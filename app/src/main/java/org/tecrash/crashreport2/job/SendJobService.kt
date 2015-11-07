@@ -98,7 +98,7 @@ class SendJobService(): JobService() {
                         dropboxApiServiceFactory.create(true, true).uploadContent(
                                 auth="Bearer ${configService.key}",
                                 dbId=it.first.serverId,
-                                data= RequestBody.create(MediaType.parse("text/plain"), it.second.getText(1024*64))
+                                data= RequestBody.create(MediaType.parse("text/plain"), it.second.getText(1024*128))
                         ).execute()
                     }
                     if (it.first.logUploadStatus == DropboxModel.SHOULD_BUT_NOT_UPLOADED) {
@@ -177,64 +177,14 @@ class SendJobService(): JobService() {
 
     private fun reportData() = observable<ReportData> { subscriber ->
         thread {
-            dropBoxItems().reduce(arrayOf<ReportDataEntry>()) { list, entry ->
-                // remove duplicated (tag, app) in one reporting session, to avoid a burst number of
-                // crashes data in a short time.
-                val dupEntry = list.filter {
-                    entry.app == it.app && entry.tag == it.tag
-                }
-
-                if (dupEntry.size() > 0) {
-                    dupEntry.get(0).count += entry.count
-                    dropboxDbService.delete(entry.id)
-
-                    list
-                } else {
-                    arrayOf(*list, entry)
-                }
-            }.map {
-                ReportData(System.currentTimeMillis(), it)
+            dropBoxItems().toList().map {
+                ReportData(System.currentTimeMillis(), it.toTypedArray())
             }.subscribe(subscriber)
         }
     }
 
     private fun dropBoxItems() = dropboxDbService.list(false).map {
-        it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
-    }.filter {
-        if ((it.second.flags and DropBoxManager.IS_TEXT) > 0 && it.first.timestamp == it.second.timeMillis)
-            true
-        else {
-            dropboxDbService.deleteAsync(it.first.id)
-            false
-        }
-    }.map {
-        ReportDataEntry(it.first.id, it.second.tag, appName(it.second), it.second.timeMillis)
-    }
-
-    private fun appName(item: DropBoxManager.Entry): String = when(item.tag) {
-            "SYSTEM_RESTART", "system_server_lowmem", "system_server_watchdog", "system_server_wtf" -> {
-                "system_server"
-            }
-            "BATTERY_DISCHARGE_INFO" -> "battery"
-            "SYSTEM_BOOT", "SYSTEM_RECOVERY_LOG" -> "system"
-            "APANIC_CONSOLE", "KERNEL_PANIC", "KERNEL_PANIC", "SYSTEM_AUDIT", "SYSTEM_LAST_KMSG" -> {
-                "kernel"
-            }
-            "SYSTEM_TOMBSTONE" -> processName(item.getText(4 * 1024), tbRegex)
-            "system_app_crash", "data_app_crash", "system_app_anr", "data_app_anr", "system_app_wtf" -> {
-                processName(item.getText(2 * 1024), procRegex)
-            }
-            else -> processName(item.getText(2 * 1024), procRegex)
-        }
-
-    private fun processName(content: String, regex: Regex): String {
-        content.lines().forEach { line ->
-            val match = regex.match(line)
-            match?.let {
-                return match.groups.get(1)!!.value
-            }
-        }
-        return "Unknown"
+        ReportDataEntry(it.id, it.tag, it.app, it.timestamp)
     }
 
     companion object {

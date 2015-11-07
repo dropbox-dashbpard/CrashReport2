@@ -3,10 +3,12 @@ package org.tecrash.crashreport2.db;
 import android.support.annotation.Nullable;
 
 import com.raizlabs.android.dbflow.annotation.Column;
+import com.raizlabs.android.dbflow.annotation.ConflictAction;
 import com.raizlabs.android.dbflow.annotation.NotNull;
 import com.raizlabs.android.dbflow.annotation.PrimaryKey;
 import com.raizlabs.android.dbflow.annotation.Table;
 import com.raizlabs.android.dbflow.annotation.Unique;
+import com.raizlabs.android.dbflow.annotation.UniqueGroup;
 import com.raizlabs.android.dbflow.structure.BaseModel;
 
 /**
@@ -14,8 +16,9 @@ import com.raizlabs.android.dbflow.structure.BaseModel;
  * Created by xiaocong on 15/10/3.
  */
 @Table(
-        tableName = "dropbox",
-        databaseName = AppDatabase.NAME
+    tableName = "dropbox",
+    databaseName = AppDatabase.NAME,
+    uniqueColumnGroups = @UniqueGroup(groupNumber = 1, uniqueConflict = ConflictAction.FAIL)
 )
 public class DropboxModel extends BaseModel {
 
@@ -33,6 +36,7 @@ public class DropboxModel extends BaseModel {
 
     @NotNull
     @Column
+    @Unique(unique = false, uniqueGroups = 1)
     protected String tag;
 
     public String getTag() {
@@ -41,6 +45,19 @@ public class DropboxModel extends BaseModel {
 
     public void setTag(String tag) {
         this.tag = tag;
+    }
+
+    @NotNull
+    @Column
+    @Unique(unique = false, uniqueGroups = 1)
+    protected String app;
+
+    public String getApp() {
+        return app;
+    }
+
+    public void setApp(String app) {
+        this.app = app;
     }
 
     @NotNull
@@ -70,6 +87,18 @@ public class DropboxModel extends BaseModel {
 
     @NotNull
     @Column
+    protected int occurs = 1;
+
+    public int getOccurs() {
+        return occurs;
+    }
+
+    public void setOccurs(int occurs) {
+        this.occurs = occurs;
+    }
+
+    @NotNull
+    @Column
     protected String log = "";
 
     public String getLog() {
@@ -82,6 +111,7 @@ public class DropboxModel extends BaseModel {
 
     @Nullable
     @Column
+    @Unique(unique = false, uniqueGroups = 1)
     protected String serverId;
 
     public String getServerId() {
@@ -119,16 +149,18 @@ public class DropboxModel extends BaseModel {
     public DropboxModel() {
     }
 
-    public DropboxModel(String tag, long timestamp, String log, long uptime) {
+    public DropboxModel(String tag, String app, long timestamp, String log, long uptime) {
         this.tag = tag;
+        this.app = app;
         this.timestamp = timestamp;
         this.log = log;
         this.uptime = uptime;
+        this.occurs = 1;
     }
 
     @Override
     public String toString() {
-        return "ID = " + id + ", Tag = " + tag + ", Timestamp = " + timestamp + ", Log = " + log;
+        return "ID = " + id + ", Tag = " + tag + ", App = " + app + ", Timestamp = " + timestamp + ", Occurs = " + occurs + ", Log = " + log;
     }
 
     public final static int SHOULD_NOT = 0;

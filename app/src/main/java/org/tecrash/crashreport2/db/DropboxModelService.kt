@@ -3,6 +3,7 @@ package org.tecrash.crashreport2.db
 import android.os.SystemClock
 import com.raizlabs.android.dbflow.sql.builder.Condition
 import com.raizlabs.android.dbflow.sql.language.Select
+import rx.Observable
 import rx.lang.kotlin.observable
 import rx.lang.kotlin.toObservable
 import rx.lang.kotlin.toSingletonObservable
@@ -16,16 +17,37 @@ import kotlin.concurrent.thread
 
 public class DropboxModelService() {
 
-    public fun create(tag: String, timestamp: Long, log: String = "") =
-        DropboxModel(tag, timestamp, log, SystemClock.elapsedRealtime())
-        .toSingletonObservable().map {
-            it.save()
-            it
+    public fun createOrIncOccurs(tag: String, appName: String, timestamp: Long, log: String = ""): Observable<DropboxModel> {
+        var item = Select().from(DropboxModel::class.java)
+                .where(Condition.column(DropboxModel_Table.TAG).eq(tag))
+                .and(Condition.column(DropboxModel_Table.APP).eq(appName))
+                .and(Condition.column(DropboxModel_Table.SERVERID).isNull).querySingle()
+        //TODO transaction
+        try {
+            if (item == null) {
+                item = DropboxModel(tag, appName, timestamp, log, SystemClock.elapsedRealtime())
+            } else {
+                item.occurs = item.occurs + 1
+                removeFile(log)
+            }
+            item.save()
+        } catch (e: Exception) {
+            removeFile(log)
+            return Observable.empty()
         }
 
-    public fun createAsync(tag: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
+        return item.toSingletonObservable()
+    }
+
+    private fun removeFile(log: String) {
+        val file = File(log)
+        if (file.exists())
+            file.delete()
+    }
+
+    public fun createOrIncOccursAsync(tag: String, appName: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
         thread {
-            create(tag, timestamp, log).subscribe(subscriber)
+            createOrIncOccurs(tag, appName, timestamp, log).subscribe(subscriber)
         }
     }
 
@@ -55,15 +77,11 @@ public class DropboxModelService() {
     }
 
     public fun delete(id: Long) {
-        Select().from(DropboxModel::class.java)
-        .where(Condition.column(DropboxModel_Table.ID).eq(id))
-        .querySingle()
-        .toSingletonObservable().forEach { item ->
-            val file = File(item.log)
-            if (file.exists())
-                file.deleteRecursively()
-            item.delete()
-        }
+        val item = Select().from(DropboxModel::class.java)
+            .where(Condition.column(DropboxModel_Table.ID).eq(id))
+            .querySingle()
+        removeFile(item.log)
+        item.delete()
     }
 
     public fun deleteAsync(id: Long) = thread {

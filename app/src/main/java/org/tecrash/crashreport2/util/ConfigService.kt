@@ -51,7 +51,7 @@ class ConfigService(private val app: Application, private val sharedPreferences:
     val ua: String by lazy {
         val (versionCode, appName) = try {
             val info = app.packageManager!!.getPackageInfo(app.packageName, 0)
-            Pair(info!!.versionCode.toString(), info!!.packageName)
+            Pair(info!!.versionCode.toString(), info.packageName)
         } catch (e: Exception) {
             Pair("Unknown", "Unknown")
         }
@@ -96,9 +96,9 @@ class ConfigService(private val app: Application, private val sharedPreferences:
     fun extraProps(props: String) = props.split(";").map {
         it.split("=")
     }.filter {
-        it.size() == 2
+        it.size == 2
     }.map {
-        it.get(0) to readProperty(it.get(1))
+        it[0] to readProperty(it[1])
     }
 
     fun enabled() =

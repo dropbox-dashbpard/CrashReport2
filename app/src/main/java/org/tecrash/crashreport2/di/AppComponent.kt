@@ -12,7 +12,7 @@ import javax.inject.Singleton
  */
 @Singleton
 @Component(modules = arrayOf(AndroidModule::class, DataModule::class))
-internal interface AppComponent {
+interface AppComponent {
     fun inject(application: BaseApplication)
     fun inject(receiver: DropboxMessageReceiver)
     fun inject(jobService: SendJobService)

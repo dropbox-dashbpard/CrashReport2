@@ -78,7 +78,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
      */
     private fun processName(content: String, regex: Regex): String {
         content.lines().forEach { line ->
-            val match = regex.match(line)
+            val match = regex.find(line)
             match?.let {
                 return match.groups.get(1)!!.value
             }

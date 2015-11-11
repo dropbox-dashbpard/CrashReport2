@@ -80,7 +80,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
         content.lines().forEach { line ->
             val match = regex.find(line)
             match?.let {
-                return match.groups.get(1)!!.value
+                return match.groups[1]!!.value
             }
         }
         return "unknown"
@@ -157,7 +157,7 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
         .subscribeOn(Schedulers.newThread())
         //.delay(5L, TimeUnit.SECONDS)
         .flatMap {
-            dbService.createOrIncOccursAsync(it.get(0), it.get(1), it.get(2).toLong(), it.get(3))
+            dbService.createOrIncOccursAsync(it[0], it[1], it[2].toLong(), it[3])
         }.subscribe { item ->
             Log.d("DB entry saved: ${item.toString()}")
             val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_ENTRY, jobComponentName)

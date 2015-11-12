@@ -3,11 +3,10 @@ package org.tecrash.crashreport2
 import android.app.Application
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
-import android.content.BroadcastReceiver
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
+import android.content.*
+import android.os.Build
 import android.os.DropBoxManager
+import android.os.SystemClock
 import org.tecrash.crashreport2.app.App
 import org.tecrash.crashreport2.db.DropboxModelService
 import org.tecrash.crashreport2.job.SendJobService
@@ -35,6 +34,15 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
     @Inject lateinit var jobScheduler: JobScheduler
     @Inject lateinit var jobComponentName: ComponentName
     @Inject lateinit var dropBoxManager: DropBoxManager
+    @Inject lateinit var sharedPreferences: SharedPreferences
+
+    val tags = arrayOf("SYSTEM_RESTART",
+            "SYSTEM_TOMBSTONE",
+            "system_server_watchdog",
+            "system_app_crash",
+            "system_app_anr",
+            "data_app_crash",
+            "data_app_anr")
 
     override fun onReceive(context: Context, intent: Intent) {
         (context.applicationContext as App).component.inject(this)
@@ -49,7 +57,10 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
                 val timestamp = intent.extras.getLong(DropBoxManager.EXTRA_TIME, -1L)
                 val tag = intent.extras.getString(DropBoxManager.EXTRA_TAG, null)
                 if (timestamp != -1L && tag != null)
-                    receiveDropboxAdded(tag, timestamp)
+                    addDropboxDatabase(dropboxObserver(tag, timestamp))
+            }
+            Intent.ACTION_BOOT_COMPLETED -> {
+                addDropboxDatabase(dropboxObserver(System.currentTimeMillis()))
             }
         }
     }
@@ -112,6 +123,17 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
     }
 
     /**
+     * Get the last reported timestamp.
+     */
+    private fun getLastTimestamp(tag: String) = sharedPreferences.getLong("ts_$tag", System.currentTimeMillis() - SystemClock.elapsedRealtime())
+
+    /**
+     * Set the last reported timestamp.
+     */
+    private fun setLastTimestamp(tag: String, timestamp: Long) = sharedPreferences.edit().putLong("ts_$tag", timestamp).commit()
+
+
+    /**
      * Get the logFileName per the dropbox entry, may be empty if no need.
      */
     private fun logFileName(tag: String, appName: String, timestamp: Long): String {
@@ -123,21 +145,49 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
             ""
     }
 
+    /**
+     * Create observable for all deopbox entry before current timestamp.
+     * **Befoe BOOT_COMPLETED, we won't received any ACTION_DROPBOX_ENTRY_ADDED broadcast intent.**
+     */
+    private fun dropboxObserver(timestamp: Long) = observable<Array<String>> { subscriber ->
+        val now = System.currentTimeMillis()
+
+        observable<DropBoxManager.Entry> { sub ->
+            tags.forEach { tag ->
+                var last = getLastTimestamp(tag)
+                var entry = dropBoxManager.getNextEntry(tag, last)
+                while (entry != null && entry.timeMillis < now) {
+                    Log.v(">>> Emit dropbox item, tag = $tag, at ${Date(entry.timeMillis)} >>>")
+                    sub.onNext(entry)
+
+                    last = entry.timeMillis
+                    entry = dropBoxManager.getNextEntry(tag, last)
+                }
+                setLastTimestamp(tag, now)
+            }
+            sub.onCompleted()
+        }.map {
+            val appName = appName(it)
+            val logFile = if (appName == "system_server")  // we only save log for system_server
+                logFileName(it.tag, appName, it.timeMillis)
+            else
+                ""
+            arrayOf(it.tag, appName, it.timeMillis.toString(), logFile)
+        }.subscribe(subscriber)
+    }
+
+    /**
+     * Create single observable per specified tag/timestamp.
+     */
     private fun dropboxObserver(tag: String, timestamp: Long) = observable<Array<String>> { subscriber ->
         thread {
             Log.v(">>> Emit dropbox item, tag = $tag, at ${Date(timestamp)} >>>")
+            setLastTimestamp(tag, timestamp)
             val entry = dropBoxManager.getNextEntry(tag, timestamp - 1)
             val appName = appName(entry)
 
             entry.toSingletonObservable().filter {
                 //TODO filter all tag/app we are interested in.
-                val tags = arrayOf("SYSTEM_RESTART",
-                        "SYSTEM_TOMBSTONE",
-                        "system_server_watchdog",
-                        "system_app_crash",
-                        "system_app_anr",
-                        "data_app_crash",
-                        "data_app_anr")
                 if (it.flags and DropBoxManager.IS_TEXT == 0)
                     false
                 else if (it.tag in tags)
@@ -152,20 +202,20 @@ public class DropboxMessageReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun receiveDropboxAdded(tag: String, timestamp: Long) = dropboxObserver(tag, timestamp)
+    private fun addDropboxDatabase(obv: rx.Observable<Array<String>>) = obv
         .observeOn(AndroidSchedulers.mainThread())
         .subscribeOn(Schedulers.newThread())
         //.delay(5L, TimeUnit.SECONDS)
         .flatMap {
-            dbService.createOrIncOccursAsync(it[0], it[1], it[2].toLong(), it[3])
+            dbService.createOrIncOccursAsync(it[0], it[1], Build.VERSION.INCREMENTAL, it[2].toLong(), it[3])
         }.subscribe { item ->
             Log.d("DB entry saved: ${item.toString()}")
             val job = JobInfo.Builder(SendJobService.JOB_SENDING_DROPBOX_ENTRY, jobComponentName)
-                .setMinimumLatency(if(config.development) 1000L else 60*1000L)
-                .setOverrideDeadline(if(config.development) 10*1000L else 60*60*1000L)
-                .setPersisted(true)
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                .build()
+                    .setMinimumLatency(if(config.development) 1000L else 60*1000L)
+                    .setOverrideDeadline(if(config.development) 10*1000L else 60*60*1000L)
+                    .setPersisted(true)
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                    .build()
             jobScheduler.schedule(job)
         }
 }

@@ -109,6 +109,19 @@ public class DropboxModel extends BaseModel {
         this.log = log;
     }
 
+    @NotNull
+    @Column
+    @Unique(unique = false, uniqueGroups = 1)
+    protected String incremental = "";
+
+    public String getIncremental() {
+        return  incremental;
+    }
+
+    public void setIncremental(String incremental) {
+        this.incremental = incremental;
+    }
+
     @Nullable
     @Column
     @Unique(unique = false, uniqueGroups = 1)
@@ -149,9 +162,10 @@ public class DropboxModel extends BaseModel {
     public DropboxModel() {
     }
 
-    public DropboxModel(String tag, String app, long timestamp, String log, long uptime) {
+    public DropboxModel(String tag, String app, String incremental, long timestamp, String log, long uptime) {
         this.tag = tag;
         this.app = app;
+        this.incremental = incremental;
         this.timestamp = timestamp;
         this.log = log;
         this.uptime = uptime;

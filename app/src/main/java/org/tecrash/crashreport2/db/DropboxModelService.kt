@@ -17,15 +17,16 @@ import kotlin.concurrent.thread
 
 public class DropboxModelService() {
 
-    public fun createOrIncOccurs(tag: String, appName: String, timestamp: Long, log: String = ""): Observable<DropboxModel> {
+    public fun createOrIncOccurs(tag: String, appName: String, incremental: String, timestamp: Long, log: String = ""): Observable<DropboxModel> {
         var item = Select().from(DropboxModel::class.java)
                 .where(Condition.column(DropboxModel_Table.TAG).eq(tag))
                 .and(Condition.column(DropboxModel_Table.APP).eq(appName))
+                .and(Condition.column(DropboxModel_Table.INCREMENTAL).eq(incremental))
                 .and(Condition.column(DropboxModel_Table.SERVERID).isNull).querySingle()
         //TODO transaction
         try {
             if (item == null) {
-                item = DropboxModel(tag, appName, timestamp, log, SystemClock.elapsedRealtime())
+                item = DropboxModel(tag, appName, incremental, timestamp, log, SystemClock.elapsedRealtime())
             } else {
                 item.occurs = item.occurs + 1
                 removeFile(log)
@@ -45,9 +46,9 @@ public class DropboxModelService() {
             file.delete()
     }
 
-    public fun createOrIncOccursAsync(tag: String, appName: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
+    public fun createOrIncOccursAsync(tag: String, appName: String, incremental: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
         thread {
-            createOrIncOccurs(tag, appName, timestamp, log).subscribe(subscriber)
+            createOrIncOccurs(tag, appName, incremental, timestamp, log).subscribe(subscriber)
         }
     }
 

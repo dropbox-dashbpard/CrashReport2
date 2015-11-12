@@ -7,6 +7,7 @@ import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.DropBoxManager
 import android.os.Message
 import android.os.Messenger
@@ -183,7 +184,14 @@ class SendJobService(): JobService() {
         }
     }
 
-    private fun dropBoxItems() = dropboxDbService.list(false).map {
+    private fun dropBoxItems() = dropboxDbService.list(false).filter {
+        if (it.incremental == Build.VERSION.INCREMENTAL)
+            true
+        else {
+            dropboxDbService.deleteAsync(it.id)
+            false
+        }
+    }.map {
         ReportDataEntry(it.id, it.tag, it.app, it.timestamp)
     }
 

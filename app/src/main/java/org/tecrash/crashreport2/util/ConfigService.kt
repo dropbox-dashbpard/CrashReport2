@@ -7,8 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.TelephonyManager
 import org.tecrash.crashreport2.R
-import org.tecrash.crashreport2.readProperty
-import org.tecrash.crashreport2.readText
+import java.io.File
+import java.io.IOException
+import java.io.InputStreamReader
 import java.util.*
 
 /**
@@ -109,4 +110,19 @@ class ConfigService(private val app: Application, private val sharedPreferences:
                     .getApplicationInfo(app.packageName, PackageManager.GET_META_DATA)
                     .metaData.getString(key)
 
+
+    internal fun readProperty(key: String): String = try {
+        val proc = Runtime.getRuntime().exec(arrayOf("/system/bin/getprop", key))
+        InputStreamReader(proc.inputStream).readText().trim()
+    } catch (e: IOException) {
+        e.printStackTrace()
+        ""
+    }
+
+    internal fun readText(fileName: String): String = try {
+        File(fileName).bufferedReader().readText()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        ""
+    }
 }

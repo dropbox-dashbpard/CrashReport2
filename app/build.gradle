@@ -11,7 +11,7 @@ def getBuildId() {
         versionCode = buildProps.getProperty('BUILD_ID').toInteger() + 1
     }
 
-    buildProps['BUILD_ID']=versionCode.toString()
+    buildProps['BUILD_ID']=String.format("%06d", versionCode)
     buildProps.store(buildPropsFile.newWriter(), null)
 
     return versionCode

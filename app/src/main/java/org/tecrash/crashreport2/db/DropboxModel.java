@@ -1,7 +1,5 @@
 package org.tecrash.crashreport2.db;
 
-import android.support.annotation.Nullable;
-
 import com.raizlabs.android.dbflow.annotation.Column;
 import com.raizlabs.android.dbflow.annotation.ConflictAction;
 import com.raizlabs.android.dbflow.annotation.NotNull;
@@ -122,7 +120,6 @@ public class DropboxModel extends BaseModel {
         this.incremental = incremental;
     }
 
-    @Nullable
     @Column
     @Unique(unique = false, uniqueGroups = 1)
     protected String serverId;

@@ -4,7 +4,6 @@ import android.os.SystemClock
 import com.raizlabs.android.dbflow.sql.builder.Condition
 import com.raizlabs.android.dbflow.sql.language.Select
 import rx.Observable
-import rx.lang.kotlin.observable
 import rx.lang.kotlin.toObservable
 import rx.lang.kotlin.toSingletonObservable
 import java.io.File
@@ -46,19 +45,19 @@ public class DropboxModelService() {
             file.delete()
     }
 
-    public fun createOrIncOccursAsync(tag: String, appName: String, incremental: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
-        thread {
-            createOrIncOccurs(tag, appName, incremental, timestamp, log).subscribe(subscriber)
-        }
-    }
+//    public fun createOrIncOccursAsync(tag: String, appName: String, incremental: String, timestamp: Long, log: String = "") = observable<DropboxModel> { subscriber->
+//        thread {
+//            createOrIncOccurs(tag, appName, incremental, timestamp, log).subscribe(subscriber)
+//        }
+//    }
 
     public fun get(id: Long) = Select().from(DropboxModel::class.java)
         .where(Condition.column(DropboxModel_Table.ID).eq(id))
         .querySingle().toSingletonObservable()
 
-    public fun getAsync(id: Long) = observable<DropboxModel> { subscriber ->
-        thread { get(id).subscribe(subscriber) }
-    }
+//    public fun getAsync(id: Long) = observable<DropboxModel> { subscriber ->
+//        thread { get(id).subscribe(subscriber) }
+//    }
 
 
     public fun list(reported: Boolean = false, order: String = DropboxModel_Table.ID): rx.Observable<DropboxModel> {
@@ -71,11 +70,11 @@ public class DropboxModelService() {
         return where.orderBy(true, order).queryList().toObservable()
     }
 
-    public fun listAsync(includeReported: Boolean = false, order: String = DropboxModel_Table.TIMESTAMP) = observable<DropboxModel> { subscriber->
-        thread {
-            list(includeReported, order).subscribe(subscriber)
-        }
-    }
+//    public fun listAsync(includeReported: Boolean = false, order: String = DropboxModel_Table.TIMESTAMP) = observable<DropboxModel> { subscriber->
+//        thread {
+//            list(includeReported, order).subscribe(subscriber)
+//        }
+//    }
 
     public fun delete(id: Long) {
         val item = Select().from(DropboxModel::class.java)

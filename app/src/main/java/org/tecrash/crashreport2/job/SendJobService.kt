@@ -22,12 +22,11 @@ import org.tecrash.crashreport2.db.DropboxModel
 import org.tecrash.crashreport2.db.DropboxModelService
 import org.tecrash.crashreport2.util.ConfigService
 import org.tecrash.crashreport2.util.Log
-import rx.lang.kotlin.observable
 import rx.lang.kotlin.toObservable
 import rx.schedulers.Schedulers
+import rx.subscriptions.CompositeSubscription
 import java.io.File
 import javax.inject.Inject
-import kotlin.concurrent.thread
 import kotlin.text.Regex
 
 /**
@@ -43,14 +42,17 @@ class SendJobService(): JobService() {
     @Inject lateinit var configService: ConfigService
     @Inject lateinit var jobScheduler: JobScheduler
 
+    lateinit var compositeSubscription: CompositeSubscription
+
     override fun onCreate() {
         super.onCreate()
         (application as App).component.inject(this)
-
+        compositeSubscription = CompositeSubscription()
         Log.d("Job service created!")
     }
 
     override fun onDestroy() {
+        compositeSubscription.unsubscribe()
         super.onDestroy()
         Log.d("Job service destroyed!")
     }
@@ -84,7 +86,7 @@ class SendJobService(): JobService() {
     private fun doUpload(params: JobParameters) {
         Log.d("Uploading...")
         // upload content & log
-        dropboxDbService.list(true).map {
+        val sub = dropboxDbService.list(true).map {
             it to dropBoxManager.getNextEntry(it.tag, it.timestamp - 1)
         }.filter {
             it.second?.timeMillis == it.first.timestamp
@@ -121,11 +123,13 @@ class SendJobService(): JobService() {
                 }
             }
         }
+
+        compositeSubscription.add(sub)
     }
 
     private fun doReport(params: JobParameters) {
         var reportData: ReportData? = null
-        reportData().subscribeOn(Schedulers.newThread()).flatMap { data ->
+        val sub = reportData().flatMap { data ->
             Log.d("Reporting crashes data...")
             reportData = data
             dropboxApiServiceFactory.create(true, true).report(
@@ -137,7 +141,7 @@ class SendJobService(): JobService() {
         }.filter {
             if (it.first == null) {
                 // if the server rejects the item, it returns null
-                dropboxDbService.deleteAsync(it.second.id)
+                dropboxDbService.delete(it.second.id)
                 false
             } else
                 true
@@ -145,7 +149,7 @@ class SendJobService(): JobService() {
             Log.d("Reporting job finished!")
             // notify jobService that it's done.
             jobFinished(params, false)
-        }.subscribe({ list ->
+        }.subscribeOn(Schedulers.newThread()).subscribe({ list ->
             Log.d("Report result: ${list}")
             list.forEach { zipped ->
                 dropboxDbService.get(zipped.second.id).forEach { item ->
@@ -163,6 +167,8 @@ class SendJobService(): JobService() {
         }, { error ->
             Log.e(error.toString())
         })
+
+        compositeSubscription.add(sub)
     }
 
     private fun uploadContentJob() {
@@ -176,27 +182,23 @@ class SendJobService(): JobService() {
         jobScheduler.schedule(job)
     }
 
-    private fun reportData() = observable<ReportData> { subscriber ->
-        thread {
-            dropBoxItems().toList().map {
-                ReportData(System.currentTimeMillis(), it.toTypedArray())
-            }.subscribe(subscriber)
-        }
+    private fun reportData() = dropBoxItems().toList().map {
+        ReportData(System.currentTimeMillis(), it.toTypedArray())
     }
 
-    private fun dropBoxItems() = dropboxDbService.list(false).filter {
-        if (it.incremental == Build.VERSION.INCREMENTAL)
-            true
-        else {
-            dropboxDbService.deleteAsync(it.id)
-            false
+        private fun dropBoxItems() = dropboxDbService.list(false).filter {
+            if (it.incremental == Build.VERSION.INCREMENTAL)
+                true
+            else {
+                dropboxDbService.delete(it.id)
+                false
+            }
+        }.map {
+            ReportDataEntry(it.id, it.tag, it.app, it.timestamp)
         }
-    }.map {
-        ReportDataEntry(it.id, it.tag, it.app, it.timestamp)
-    }
 
-    companion object {
-        final val JOB_SENDING_DROPBOX_ENTRY = 1
+        companion object {
+            final val JOB_SENDING_DROPBOX_ENTRY = 1
         final val JOB_SENDING_DROPBOX_CONTENT = 2
         final val JOB_RETRIEVING_CONFIG = 101
 

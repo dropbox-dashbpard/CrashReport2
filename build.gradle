@@ -3,10 +3,10 @@
 buildscript {
     ext {
         kotlin_version = "+"
-        support_version = "23.0.1"
+        support_version = "23.1.1"
         okhttp_version = "2.5.0"
         dagger_version = "2.0.1"
-        dbflow_versio = "2.0.0"
+        dbflow_versio = "2.2.1"
         retrofit_version = "2.0.0-beta2"
         gson_version = "2.3.1"
     }

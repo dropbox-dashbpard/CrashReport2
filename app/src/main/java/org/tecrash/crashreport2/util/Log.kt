@@ -1,6 +1,6 @@
 package org.tecrash.crashreport2.util
 
-import org.tecrash.crashreport2.debugBuild
+import android.os.Build
 
 /**
  * Log
@@ -8,6 +8,7 @@ import org.tecrash.crashreport2.debugBuild
  */
 object Log {
     const private val TAG = "CrashReport"
+    val debugBuild = Build.TYPE != "user"
 
     fun v(msg: String) {
         if (debugBuild) android.util.Log.v(TAG, msg)
